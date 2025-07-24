@@ -1,72 +1,65 @@
+
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import datetime
 
-# Set page config
-st.set_page_config(page_title="🔋 EV Forecast Dashboard", layout="wide")
+st.set_page_config(page_title="🔌 EV Charging Demand Forecast", layout="wide")
 
-# --- LOAD FORECAST DATA ---
+st.title("🔋 EV Charging Demand Forecast (2024–2030)")
+st.markdown("Forecasting EV adoption & charging needs using real-world trends 🚗⚡")
+
+# Load the forecast data
 @st.cache_data
 def load_data():
-    url = "https://raw.githubusercontent.com/akshat-duggal/EVsync/refs/heads/main/forecast.csv"  # your GitHub raw link
-    df = pd.read_csv(url)
-    df['month'] = pd.to_datetime(df['month'])
+    df = pd.read_csv("https://raw.githubusercontent.com/akshat-duggal/EVsync/refs/heads/main/forecast.csv")
+    df['ds'] = pd.to_datetime(df['ds'])
+    df.rename(columns={'ds': 'month', 'yhat': 'ev_count'}, inplace=True)
+    df['estimated_charging_sessions'] = df['ev_count'] * 1.5
     return df
 
 df = load_data()
 
-# --- SIDEBAR ---
-st.sidebar.header("🔧 Controls")
-selected_year = st.sidebar.slider("Choose a Year", 2023, 2030, 2025)
+# Sidebar – Year selector
+st.sidebar.header("🔮 Explore Future Demand")
+year_choice = st.sidebar.selectbox("Select Year to Forecast:", list(range(2024, 2031)))
 
-# Policy Simulation
-st.sidebar.subheader("🎯 Policy Simulation")
-gov_subsidy = st.sidebar.slider("Govt EV Incentives (%)", 0, 30, 0, step=5)
-private_expansion = st.sidebar.slider("Private Charging Expansion (%)", 0, 30, 0, step=5)
+selected_date = f"{year_choice}-12-01"
+year_data = df[df['month'] == selected_date]
 
-# --- APPLY POLICY EFFECT ---
-df['adjusted_forecast'] = df['Forecast'] * (1 + (gov_subsidy + private_expansion) / 100)
+if not year_data.empty:
+    st.subheader(f"📅 Forecast for {year_choice}")
+    col1, col2 = st.columns(2)
+    col1.metric("🚗 Predicted EVs", f"{int(year_data['ev_count'].values[0]):,}")
+    col2.metric("🔌 Estimated Charging Sessions", f"{int(year_data['estimated_charging_sessions'].values[0]):,}")
 
-# --- FILTER BY YEAR ---
-df['year'] = df['month'].dt.year
-future_df = df[df['year'] == selected_year]
+# A. Line chart of EV growth
+st.subheader("📈 EV Growth Forecast")
+fig1 = px.line(df, x='month', y='ev_count', title="Projected Number of EVs Over Time", markers=True)
+fig1.update_traces(line=dict(color="green"))
+st.plotly_chart(fig1, use_container_width=True)
 
-# --- MAIN HEADER ---
-st.title("🔮 EV Forecasting & Charging Demand Dashboard")
-st.markdown("Forecasting electric vehicle adoption and infrastructure needs with interactive policy simulation.")
-
-# --- SECTION A: Future Explorer ---
-st.subheader(f"📊 Projected EV Stats for {selected_year}")
-total_ev = int(future_df['adjusted_forecast'].sum())
-charging_sessions = int(total_ev * 1.2)  # assume 1.2 sessions/month per EV
-
-col1, col2 = st.columns(2)
-col1.metric("🔌 Forecasted EVs", f"{total_ev:,}")
-col2.metric("⚡ Expected Charging Sessions", f"{charging_sessions:,}")
-
-# --- SECTION B: Heatmap Placeholder ---
-st.subheader("🌍 County-Wise EV Adoption Heatmap")
-st.info("📍 Your dataset currently lacks geographic columns (county/location). Heatmap unavailable until location data is added.")
-
-# --- SECTION D: Seasonal Demand Insights ---
-st.subheader("📅 Seasonal EV Adoption Trends")
-monthly_avg = df.groupby(df['month'].dt.month)['adjusted_forecast'].mean().reset_index()
-monthly_avg.columns = ['Month', 'Average Forecast']
-fig2 = px.line(monthly_avg, x="Month", y="Average Forecast",
-               title="Monthly Seasonality in EV Forecast",
-               markers=True)
+# B. Charging demand chart
+st.subheader("⚡ Forecasted Charging Demand")
+fig2 = px.line(df, x='month', y='estimated_charging_sessions', title="Estimated Charging Sessions Over Time", markers=True)
+fig2.update_traces(line=dict(color="orange"))
 st.plotly_chart(fig2, use_container_width=True)
 
-# --- SECTION F: Policy Simulation Summary ---
-st.subheader("🧪 Policy Simulation Impact")
-st.markdown(f"""
-- 📈 Government subsidy impact: **+{gov_subsidy}%**
-- 🏗️ Private charging network expansion: **+{private_expansion}%**
-- 🔮 Total projected EVs in {selected_year}: **{total_ev:,}**
-- ⚡ Estimated monthly charging sessions: **{charging_sessions:,}**
-""")
+# D. Seasonal Demand Spike Detector (simple display)
+st.subheader("📊 Seasonal Trends")
+df['month_name'] = df['month'].dt.strftime('%b')
+monthly_avg = df.groupby('month_name')['estimated_charging_sessions'].mean().reindex([
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+])
+st.bar_chart(monthly_avg)
 
-# --- Show Data ---
-with st.expander("🔍 View Forecast Dataset"):
-    st.dataframe(df[['month', 'ev_count', 'Forecast', 'adjusted_forecast']])
+# F. Policy Simulation (Subsidy Slider)
+st.subheader("⚙️ Policy Simulation – Boost EV Adoption")
+subsidy = st.slider("Simulate % Increase in EV Adoption", 0, 50, 0, step=5)
+simulated_df = df.copy()
+simulated_df['ev_count'] *= (1 + subsidy / 100)
+simulated_df['estimated_charging_sessions'] = simulated_df['ev_count'] * 1.5
+
+fig3 = px.line(simulated_df, x='month', y='ev_count', title=f"EV Adoption with {subsidy}% Subsidy", markers=True)
+fig3.update_traces(line=dict(color="purple"))
+st.plotly_chart(fig3, use_container_width=True)
