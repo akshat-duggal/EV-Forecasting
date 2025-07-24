@@ -14,7 +14,7 @@ st.title("🔋 ChargeCast: EV Adoption & Charging Demand Forecast")
 # ---- LOAD FORECAST DATA ----
 @st.cache_data
 def load_data():
-    url = "https://raw.githubusercontent.com/your-username/ev-demand-forecast/main/forecast.csv"  # replace!
+    url = "https://raw.githubusercontent.com/akshat-duggal/EV-Forecasting/refs/heads/main/forecast.csv"  # replace!
     df = pd.read_csv(url, parse_dates=['ds'])
     return df
 
